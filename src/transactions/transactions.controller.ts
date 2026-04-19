@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } fro
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { UserRole } from '../users/schemas/user.schema';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -37,14 +38,16 @@ export class TransactionsController {
     return await this.transactionsService.revertStage(id);
   }
 
-  // 🚀 YENİ: SATIŞ DÜZENLEME ROTASI
+  // EN: Route to edit transaction details, restricted to Agent/Marketer.
+  // TR: Satış detaylarını düzenleme rotası, sadece Danışman ve Pazarlamacılar.
   @Patch(':id')
   @Roles(UserRole.AGENT, UserRole.MARKETER)
-  async updateTransaction(@Param('id') id: string, @Body() updateData: any) {
+  async updateTransaction(@Param('id') id: string, @Body() updateData: UpdateTransactionDto) {
     return await this.transactionsService.updateTransaction(id, updateData);
   }
 
-  // 🚀 YENİ: SATIŞ SİLME ROTASI
+  // EN: Route to delete a transaction.
+  // TR: İşlem silme rotası.
   @Delete(':id')
   @Roles(UserRole.ADMIN, UserRole.AGENT, UserRole.MARKETER)
   async deleteTransaction(@Param('id') id: string) {

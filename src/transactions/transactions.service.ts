@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { Transaction, TransactionDocument, TransactionStage } from './schemas/transaction.schema';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { validateStageTransition } from './stage-transition.util';
 import { CommissionsService } from '../commissions/commissions.service';
 
@@ -77,12 +78,14 @@ export class TransactionsService {
     return updatedTx as Transaction;
   }
 
-  // 🚀 YENİ: İŞLEM DÜZENLEME (EDIT)
-  async updateTransaction(id: string, updateData: any): Promise<Transaction> {
+  // EN: TRANSACTION UPDATE (EDIT) - Validating input strictly to prevent overwriting critical arrays (history etc).
+  // TR: İŞLEM DÜZENLEME (EDIT) - 'history' gibi kritik dizilerin ezilmesini engellemek için sadece izin verilen verileri alır.
+  async updateTransaction(id: string, updateData: UpdateTransactionDto): Promise<Transaction> {
     const transaction = await this.transactionModel.findById(id).exec();
     if (!transaction) throw new NotFoundException('İşlem bulunamadı.');
 
-    // ERP KURALI: Tamamlanmış (Parası dağıtılmış) işlem değiştirilemez. Önce geri alınmalıdır.
+    // EN: ERP RULE: Completed transactions (where funds are distributed) cannot be modified. They must be reverted first.
+    // TR: ERP KURALI: Tamamlanmış (Parası dağıtılmış) işlem değiştirilemez. Önce geri alınmalıdır.
     if (transaction.stage?.toLowerCase() === 'completed') {
       throw new BadRequestException('Tamamlanmış işlemler düzenlenemez. Lütfen önce aşamayı geri alınız.');
     }
@@ -90,21 +93,16 @@ export class TransactionsService {
     return await this.transactionModel.findByIdAndUpdate(id, updateData, { returnDocument: 'after' }).exec() as Transaction;
   }
 
-  // ====================================================================
-  // 🚀 GÜÇLENDİRİLMİŞ SİLME KORUMASI
-  // TR: 5. İŞLEM SİLME (DELETE) - Tamamlanmış işlemler silinemez.
-  // EN: 5. TRANSACTION DELETION (DELETE) - Completed transactions cannot be deleted.
-  // ====================================================================
+  // EN: TRANSACTION DELETION - Critical Rule: Completed transactions cannot be deleted directly due to financial records.
+  // TR: İŞLEM SİLME - Kritik Kural: Finansal kayıtlar nedeniyle tamamlanmış işlemler doğrudan silinemez.
   async deleteTransaction(id: string): Promise<void> {
     const transaction = await this.transactionModel.findById(id).exec();
     if (!transaction) throw new NotFoundException('İşlem bulunamadı.');
 
-    // TR: Kritik Güvenlik Kuralı: Tamamlanmış (komisyonu dağıtılmış) bir işlem doğrudan silinemez.
-    // EN: Critical Security Rule: A completed transaction (with distributed commissions) cannot be deleted directly.
     if (transaction.stage?.toLowerCase() === 'completed') {
       throw new BadRequestException({
-        tr: 'Tamamlanmış işlemler doğrudan silinemez. Önce aşamayı geri alarak finansal kayıtları iptal etmelisiniz.',
-        en: 'Completed transactions cannot be deleted directly. You must first revert the stage to cancel financial records.'
+        en: 'Completed transactions cannot be deleted directly. You must first revert the stage to cancel financial records.',
+        tr: 'Tamamlanmış işlemler doğrudan silinemez. Önce aşamayı geri alarak finansal kayıtları iptal etmelisiniz.'
       });
     }
 

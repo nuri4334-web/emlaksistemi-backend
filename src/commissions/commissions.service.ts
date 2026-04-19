@@ -7,26 +7,26 @@ import { TransactionDocument } from '../transactions/schemas/transaction.schema'
 @Injectable()
 export class CommissionsService {
   constructor(
-    // TR: Komisyon modelini veritabanından içeri alıyoruz.
-    // EN: Injecting the commission model from the database.
+    // EN: Inject Mongoose model to perform commission database operations.
+    // TR: Komisyon veritabanı işlemleri (I/O) için Mongoose modelini içeri aktarırız.
     @InjectModel(Commission.name) private commissionModel: Model<CommissionDocument>,
   ) {}
 
-  // TR: GÜVENLİK: Kuruş/Cent Mantığı ile Güvenli Yüzde Hesaplama
-  // EN: SECURITY: Safe Percentage Calculation using Cents Logic
+  // EN: UTILITY: Safe float calculation for money values. Preventing JS float truncation errors.
+  // TR: YARDIMCI: Para değerleri için güvenli (kuruş bazlı) yüzdelik hesaplama, JS ondalık sayı hatalarını engeller.
   private calculateSafePercentage(amount: number, percentage: number): number {
     const amountInCents = Math.round(amount * 100);
     const resultInCents = Math.round(amountInCents * (percentage / 100));
     return resultInCents / 100;
   }
 
-  // TR: KOMİSYON DAĞITIM ALGORİTMASI (Projenin Kalbi)
-  // EN: COMMISSION DISTRIBUTION ALGORITHM (The Heart of the Project)
+  // EN: CORE ALGORITHM: Automates the financial distribution based on specific case rules.
+  // TR: TEMEL ALGORİTMA: Kurallara bağlı kalarak finansal dağıtımı otomatik olarak gerçeklestirir.
   async calculateAndSaveCommission(transaction: TransactionDocument): Promise<Commission> {
     const txId = transaction._id as Types.ObjectId;
 
-    // TR: Çifte işlem (Duplicate Key) koruması. Aynı ID ile daha önce hesaplanmış mı?
-    // EN: Duplicate key protection. Has it been calculated before with the same ID?
+    // EN: Idempotency check. Ensures commission is not double-calculated for the same transaction.
+    // TR: Idempotency (tekrarlanabilirlik) koruması. Aynı işlem için iki kere komisyon hesaplanmasını engeller.
     const existingCommission = await this.commissionModel.findOne({ transactionId: txId }).exec();
     if (existingCommission) {
       throw new BadRequestException({
@@ -67,8 +67,8 @@ export class CommissionsService {
     return await newCommission.save();
   }
 
-  // TR: KULLANICIYA GÖRE KOMİSYONLARI GETİR
-  // EN: FETCH COMMISSIONS BASED ON USER ROLE
+  // EN: QUERY: Retrieve all distributions. Admins see all, assigned agents see only theirs.
+  // TR: SORGULAMA: Tüm dağıtımları çeker. Yöneticiler tümünü, atanmış danışmanlar sadece kendi dağıtımlarını görür.
   async getAllCommissions(user: any): Promise<Commission[]> {
     const query = (user?.role?.toLowerCase() !== 'admin') 
       ? { 'agentShares.agentId': user._id }
@@ -81,16 +81,14 @@ export class CommissionsService {
       .exec();
   }
 
-  // 🚀 KESİN ÇÖZÜM: ROLLBACK FONKSİYONU
-  // TR: İŞLEM GERİ ALINDIĞINDA DAĞITILAN KOMİSYONU KESİN OLARAK SİL
-  // EN: SECURELY DELETE DISTRIBUTED COMMISSION WHEN TRANSACTION IS REVERTED
+  // EN: AUTOMATION: Deletes distributed commission securely when a transaction is reverted.
+  // TR: OTOMASYON: Bir işlem geri alındığında dağıtılan komisyon yapısını güvenlice sistemden siler.
   async deleteCommissionByTransactionId(txId: string): Promise<void> {
     try {
-      // TR: MongoDB katı eşleşme kuralları gereği, gelen String ID'yi ObjectId'ye çeviriyoruz.
-      // EN: Converting the incoming String ID to ObjectId due to MongoDB's strict matching rules.
+      // EN: Strict Typeasting for MongoDB matching queries.
+      // TR: MongoDB eşleşme sorguları için katı tip dönüşümü.
       const objectId = new Types.ObjectId(txId);
       
-      // Mongoose'un sessizce hata vermesini engelleyen kesin silme komutu
       const result = await this.commissionModel.deleteMany({ transactionId: objectId }).exec();
       console.log(`[ROLLBACK] İşlem (${txId}) geri alındı, silinen komisyon kaydı sayısı: ${result.deletedCount}`);
     } catch (error) {
