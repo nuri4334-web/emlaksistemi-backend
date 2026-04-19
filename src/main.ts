@@ -14,10 +14,10 @@ async function bootstrap() {
 
   // TR: Tüm Frontend isteklerine ve başlıklarına (Header) izin veriyoruz.
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: ['http://localhost:3000', 'https://lumina-estates-eight.vercel.app'],
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type, Accept, Authorization', // <-- 401'İ ÇÖZECEK SİHİRLİ KELİME
+    allowedHeaders: 'Content-Type, Accept, Authorization', 
   });
 
   // .env dosyasındaki portu al, bulamazsa 3001'i kullan
